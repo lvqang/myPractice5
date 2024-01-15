@@ -51,7 +51,7 @@ extern void mem_init(long start, long end);
 extern long rd_init(long mem_start, int length);
 extern long kernel_mktime(struct tm * tm);
 extern long startup_time;
-
+extern long nr_system_calls;
 /*
  * This is set up by the setup-routine at boot-time
  */
@@ -132,7 +132,7 @@ void main(void)		/* This really IS void, no error here. */
 	sched_init();
 	buffer_init(buffer_memory_end);
 	hd_init();
-	floppy_init();
+	floppy_init();nr_system_calls = __NR_END;
 	sti();
 	move_to_user_mode();
 	if (!fork()) {		/* we count on this going ok */

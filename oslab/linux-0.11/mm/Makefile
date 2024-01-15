@@ -16,7 +16,7 @@ CPP	=gcc-3.4 -E -nostdinc -I../include
 	$(CC) $(CFLAGS) \
 	-S -o $*.s $<
 
-OBJS	= memory.o page.o
+OBJS	= memory.o page.o shm.o
 
 all: mm.o
 

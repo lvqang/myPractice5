@@ -156,7 +156,7 @@ void sleep_on(struct task_struct **p)
 		return;
 	if (current == &(init_task.task))
 		panic("task[0] trying to sleep");
-	tmp = *p;
+	tmp = *p;//此处保存的是上次调用的进程
 	*p = current;
 	current->state = TASK_UNINTERRUPTIBLE;
 	schedule();

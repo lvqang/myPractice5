@@ -130,6 +130,16 @@
 #define __NR_setreuid	70
 #define __NR_setregid	71
 
+#define __NR_sem_open	72
+#define __NR_sem_wait	73
+#define __NR_sem_post	74
+#define __NR_sem_unlink	75
+#define __NR_ftok		76
+#define __NR_shmget		77
+#define __NR_shmat		78
+#define __NR_shmdt		79
+#define __NR_END		80
+
 #define _syscall0(type,name) \
 type name(void) \
 { \
