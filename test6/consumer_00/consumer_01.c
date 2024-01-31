@@ -21,7 +21,7 @@ int main()
     if( 0 != crearShmAndSem(&(shmadd), &mutex, &full, &empty) )
     {
         printf("p(%d) crearShmAndSem fail\n", getpid());
-        print("consumer_00:", "crearShmAndSem fail\n");
+        print("consumer_01:", "crearShmAndSem fail\n");
     }
     sem_wait(mutex);
     if(shmadd->head!=0x55AA)
@@ -48,7 +48,7 @@ int main()
         if(i>=0)
         {
             printf("%d: %d\n", getpid(), i);
-            print("consumer_00:", "read=%d\n", i);
+            print("consumer_01:", "read=%d\n", i);
         }
         else
         {
@@ -63,7 +63,7 @@ int main()
     }
     
     printf("p(%d) consumer exit\n", getpid());
-    print("consumer_00:", "consumer exit\n");
+    print("consumer_01:", "consumer exit\n");
     closelog();
     return 0;
 }

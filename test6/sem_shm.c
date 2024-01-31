@@ -1,21 +1,49 @@
 
 
-#include"sem_shm.h"
+#include "sem_shm.h"
 #include<stdio.h>
+#define __LIBRARY__
+#include<unistd.h>
+#include <fcntl.h>
+/*#include <stdlib.h>*/
+#include <string.h>
+#include <stdarg.h>
 
 
-int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t ** full, sem_t ** empty)
+typedef struct
+{
+    int ini;
+    int fd;
+}logMsg;
+logMsg logi = {0,0};
+#define PATH_NAME "/usr/root/test6/log.txt"
+
+_syscall3(sem_t *,sem_open,const char *,name,int,oflag,unsigned int,value)
+_syscall1(int,sem_wait,sem_t *,sem)
+_syscall1(int,sem_post,sem_t *,sem)
+_syscall1(int,sem_unlink,const char *,name)
+
+
+_syscall2(key_t,ftok,const char *,pathname,int,proj_id)
+_syscall3(int,shmget,key_t,key,size_t,size, int,shmflg)
+_syscall3(void*,shmat,int,shmid,const void *,shmaddr,int,shmflg)
+_syscall1(int,shmdt,const void *,shmaddr)
+
+
+
+
+int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t **full, sem_t **empty)
 {
     key_t key;
     int shmid, proj_id = PROJID(0); 
-    int *shmaddr = NULL;
+    shmadrtype *shmaddr = NULL;
     sem_t *semtmp;
     const char _Mutex[] = "myMutex";
     const char _Full[]  = "myFull";
     const char _Empty[] = "myEmpty";
 
 
-    //key = ftok("./", proj_id);
+    /*key = ftok("./", proj_id);*/
     key = proj_id;
     if(key<=0)
     {
@@ -31,14 +59,14 @@ int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t ** full, sem_t ** em
     }
 
     shmaddr = (shmadrtype*)shmat(shmid, NULL, 0);
-    if(shmaddr<=((int*)0))
+    if(((int)shmaddr)<=0)
     {
         printf("shmat err\n");
         return -1;
     }
     *shmad = shmaddr;
 
-    semtmp = sem_open(_Mutex, O_CREAT, 0, 1);
+    semtmp = sem_open(_Mutex, O_CREAT, 1);
     if(semtmp==SEM_FAILED)
     {
         printf("sem_open _Mutex err\n");
@@ -46,7 +74,7 @@ int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t ** full, sem_t ** em
     }
     *mutex = semtmp;
 
-    semtmp = sem_open(_Full, O_CREAT, 0, 0);
+    semtmp = sem_open(_Full, O_CREAT, 0);
     if(semtmp==SEM_FAILED)
     {
         printf("sem_open _Full err\n");
@@ -54,7 +82,7 @@ int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t ** full, sem_t ** em
     }
     *full = semtmp;
 
-    semtmp = sem_open(_Empty, O_CREAT, 0, CONSUM_NUM+1);
+    semtmp = sem_open(_Empty, O_CREAT, CONSUM_NUM+1);
     if(semtmp==SEM_FAILED)
     {
         printf("sem_open _Empty err\n");
@@ -65,7 +93,7 @@ int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t ** full, sem_t ** em
     return 0;
 }
 
-int deleteShmAndSem(void *shmad )
+int deleteShmAndSem(shmadrtype *shmad )
 {
     const char _Mutex[] = "myMutex";
     const char _Full[]  = "myFull";
@@ -162,3 +190,53 @@ void putQueneValue(shmadrtype *quene, int value)
 
 
 
+/*log*/
+
+void print(const char *name, const char *buff, ...)
+{
+    struct stat sb;
+    va_list args;
+    char logibuf[64]={0,};
+
+    if(logi.ini==0)
+    {
+        logi.ini = 1;
+        logi.fd = open(PATH_NAME, O_CREAT|O_WRONLY|O_APPEND, 0777);
+        if(logi.fd<0)
+        {
+            printf("open fail\n");
+            return;
+        }
+    }
+    /*if(stat(PATH_NAME, &sb)!=0)*/
+    /*{*/
+    /*    printf("stat fail\n");*/
+    /*    return;*/
+    /*}*/
+    if(write(logi.fd, name, strlen(name))<1)
+    {
+        printf("write name fail\n");
+        return;
+    }
+printf("write name\n");
+    va_start(args, buff);
+    vsprintf((char*)logibuf, buff, args);
+    va_end(args);
+    if(write(logi.fd, logibuf, strlen(buff))<1)
+    {
+        printf("write buff fail\n");
+        return;
+    }
+}
+void closelog()
+{
+    if(logi.ini==1)
+    {
+        if(close(logi.fd)!=0)
+        {
+            printf("close fail\n");
+            return;
+        }
+        logi.ini = 0;
+    }
+}
