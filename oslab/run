@@ -9,4 +9,28 @@ if [ ! -e "$OSLAB_PATH/hdc/umounted" ]; then
 	fi
 fi
 
-$OSLAB_PATH/bochs/bochs-gdb -q -f $OSLAB_PATH/bochs/bochsrc.bxrc
+#$OSLAB_PATH/bochs/bochs-gdb -q -f $OSLAB_PATH/bochs/bochsrc.bxrc
+
+bochsBin=1
+
+for i in "$@"
+do
+    case $i in
+        0)
+	        bochsBin=0
+	        ;;
+        *)
+	        echo "unknow option"
+            ;;
+    esac
+done
+
+
+
+
+if [ "${bochsBin}" = "1" ]; then
+	/home/burton/bochs-2.7--enable-debugger/bin/bochs -q -f $OSLAB_PATH/bochs/bochsrcNew.bxrc
+else
+	$OSLAB_PATH/bochs/bochs-gdb -q -f $OSLAB_PATH/bochs/bochsrc.bxrc
+fi	
+	
