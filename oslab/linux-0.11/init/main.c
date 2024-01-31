@@ -38,6 +38,7 @@ static inline _syscall0(int,sync)
 #include <sys/types.h>
 
 #include <linux/fs.h>
+#include <sys/ipc.h>
 
 static char printbuf[1024];
 
@@ -132,7 +133,10 @@ void main(void)		/* This really IS void, no error here. */
 	sched_init();
 	buffer_init(buffer_memory_end);
 	hd_init();
-	floppy_init();nr_system_calls = __NR_END;
+	floppy_init();
+	nr_system_calls = __NR_END;
+	sys_inishm();
+	sys_inisem();
 	sti();
 	move_to_user_mode();
 	if (!fork()) {		/* we count on this going ok */

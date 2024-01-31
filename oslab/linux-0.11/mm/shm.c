@@ -9,19 +9,40 @@
 #define PAGE_SIZE  4096
 #define SHM_NUM  64
 #define PAGE_NUM  64
-#define TASK_NUM  (NR_TASKS/8+1)
+#define TASK_NUM  (NR_TASKS)   //可关联的进程数量
+
+#define SHM_MAX_HEAP  (0xA00000)  //10M
 typedef struct 
 {
     key_t key;                      //索引值
     unsigned int pageNum;           //页数
     unsigned long shmaddr[PAGE_NUM];//物理内存最多64页
-    unsigned char pid[TASK_NUM];    //pid位
+    unsigned long pid[TASK_NUM];    //pid可关联的进程pid
+    unsigned long vaddr[TASK_NUM];    //每个进程所关联的虚拟地址
 
-    int shm_nattch;                 //关联的虚拟地址数量
+    int shm_nattch;                 //关联的虚拟地址数量-多个进程同时，用于释放内存
     int shm_atime;
     int shm_dtime;
 }shmstruct;
 shmstruct shmnum[SHM_NUM];
+
+int sys_inishm()
+{
+    int i;
+
+    for(i=0;i<SHM_NUM;i++)
+    {
+        shmnum[i].key = -1;
+        shmnum[i].pageNum = 0;
+        memset(shmnum[i].pid, 0, TASK_NUM);
+        memset(shmnum[i].vaddr, 0, TASK_NUM);
+        memset(shmnum[i].shmaddr, 0, PAGE_NUM);
+        shmnum[i].shm_nattch = 0;
+        shmnum[i].shm_atime = 0;
+        shmnum[i].shm_dtime = 0;
+    }
+    return 0;
+}
 
 /*
 pathname：目录或者文件
@@ -57,12 +78,17 @@ static unsigned long findEmptyAdress(unsigned int pageNum)
 
     code_base  = get_base(current->ldt[1]);
     data_base  = code_base;//database is same as withc codebahe at linux 0.11
-    data_limit = 0x4000000;//data limit is 64M
+    data_limit = 0x4000000;//data limit is 64M this is stack
 
-    data_base += data_limit;
-    for(i=0;i<pageNum && data_base>PAGE_SIZE;)
+    data_base = code_base+current->brk;// length is end_code + date_len + bss_len// also heap end
+    data_base += 0x0FFF;// 向上取整4K              向上取整5K*K(0x4FFFFF)  why ????
+    data_base &= 0xFFFFF000;//向上取整4K
+    code_base = data_base;
+    //printk("findEmptyAdress get %p\n", code_base);
+    //data_base += data_limit;//不再使用用户空间的最高位，因为这是栈的起始位置
+    for(i=0;i<pageNum && data_base<(code_base+SHM_MAX_HEAP);)
     {
-        data_base -= PAGE_SIZE;
+        //data_base -= PAGE_SIZE;
         page_table = (unsigned long *) ((data_base>>20) & 0xffc);
         if((*page_table)&1)
         {
@@ -78,19 +104,24 @@ static unsigned long findEmptyAdress(unsigned int pageNum)
             *page_table = tmp|7;
             page_table = (unsigned long *) tmp;
         }
-        if((*page_table)&1)
+        if(page_table[(data_base>>12)&0x3FF]&1)
         {
-            i=0;
+            i=0;//printk("findEmptyAdress 2\n");
             continue;
         }
         else
         {
             i++;
         }
+        data_base += PAGE_SIZE;
         if(i==pageNum)
         {
-            return data_base;
+            return (data_base-pageNum*PAGE_SIZE);
         }
+    }
+    if(data_base==(code_base+SHM_MAX_HEAP))
+    {
+        printk("findEmptyAdress have no empty addr %p\n", data_base);
     }
     return 0;
 }
@@ -132,7 +163,7 @@ int sys_shmget(key_t key, size_t size, int shmflg)
             shmNull = &shmnum[i];
             shmNullID = i;
         }
-        if(shmKey && shmNull)
+        if(shmKey || shmNull)
         {
             break;
         }
@@ -201,6 +232,7 @@ void* sys_shmat(int shmid, const void * shmaddr, int shmflg)
     int i = 0;
     unsigned long address, tmpaddr;
     shmstruct *shmKey=NULL;
+    unsigned long code_base  = get_base(current->ldt[1]);
 
     if(shmid<0 || shmid>=SHM_NUM)
     {
@@ -222,8 +254,16 @@ void* sys_shmat(int shmid, const void * shmaddr, int shmflg)
             }
             shmKey->shm_atime = current->cutime;
             shmKey->shm_nattch ++;
-            shmKey->pid[current->pid/8] |= (1<<(current->pid%8));
-            return (void *)address;
+            for(i=0;i<TASK_NUM;i++)
+            {
+                if(shmKey->pid[i]==0)
+                {
+                    shmKey->pid[i] = current->pid;
+                    shmKey->vaddr[i] = address;//虚拟地址永远不会重复
+                    break;
+                }
+            }
+            return (void *)(address-code_base);//返回的是相对地址 不是绝对地址
         }
         else
         {
@@ -231,7 +271,7 @@ void* sys_shmat(int shmid, const void * shmaddr, int shmflg)
             return (void *)-1;
         }
     }
-    else
+    else//虚拟地址可能重复，没有做判断，保留
     {
         if(shmflg & SHM_RND)
         {
@@ -248,8 +288,16 @@ void* sys_shmat(int shmid, const void * shmaddr, int shmflg)
             }
             shmKey->shm_atime = current->cutime;
             shmKey->shm_nattch ++;
-            shmKey->pid[current->pid/8] |= (1<<(current->pid%8));
-            return (void *)address;
+            for(i=0;i<TASK_NUM;i++)
+            {
+                if(shmKey->pid[i]==0)
+                {
+                    shmKey->pid[i] = current->pid;
+                    shmKey->vaddr[i] = address;//虚拟地址永远不会重复
+                    break;
+                }
+            }
+            return (void *)(address-code_base);
         }
         else
         {
@@ -266,12 +314,47 @@ void* sys_shmat(int shmid, const void * shmaddr, int shmflg)
             }
             shmKey->shm_atime = current->cutime;
             shmKey->shm_nattch ++;
-            shmKey->pid[current->pid/8] |= (1<<(current->pid%8));
-            return (void *)address;
+            for(i=0;i<TASK_NUM;i++)
+            {
+                if(shmKey->pid[i]==0)
+                {
+                    shmKey->pid[i] = current->pid;
+                    shmKey->vaddr[i] = address;//虚拟地址永远不会重复
+                    break;
+                }
+            }
+            return (void *)(address-code_base);
         }
     }
 }
 
+
+static unsigned long cancelAdress(unsigned int addr)
+{
+    unsigned long data_limit,code_base,data_base;
+    int i;
+    unsigned long tmp, *page_table;
+
+    page_table = (unsigned long *)((addr >> 20) & 0xffc);
+    if ((*page_table) & 1)
+    {
+        page_table = (unsigned long *)((*page_table) & 0xFFFFF000);
+    }
+    else
+    {
+        printk("cancelAdress free null page table\n");
+        return;
+    }
+    if ((*page_table) & 1)
+    {
+        page_table[(addr>>12)&0x3FF] = 0;
+    }
+    else
+    {
+        printk("cancelAdress free null page\n");
+        return;
+    }
+}
 
 /*
 功能：解除共享内存映射
@@ -283,19 +366,35 @@ shmaddr：映射地址
 */
 int sys_shmdt(const void *shmaddr)
 {
-    int i;
-    shmstruct *shmKey;
+    int i,j;
+    shmstruct *shmKey = NULL;
+    int curVaddr = -1;
+    unsigned long code_base  = get_base(current->ldt[1]);
+    unsigned long tmpshmaddr = (unsigned long)shmaddr;
 
     if(shmaddr==NULL)
     {
         printk("shmdt para err\n");
         return -1;
     }
+
+    tmpshmaddr += code_base;//相对地址要加基地址
     for(i=0;i<SHM_NUM;i++)
     {
-        if(shmnum[i].key>=0 && (shmnum[i].pid[current->pid/8]&(1<<(current->pid%8))))
+        if(shmnum[i].key>=0)
         {
-            shmKey=&shmnum[i];
+            for(j=0;j<TASK_NUM;j++)
+            {
+                if(shmnum[i].pid[j]==current->pid && shmnum[i].vaddr[j]==tmpshmaddr)
+                {
+                    shmKey = &shmnum[i];
+                    curVaddr = j;
+                    break;
+                }
+            }
+        }
+        if(curVaddr>=0)
+        {
             break;
         }
     }
@@ -307,15 +406,22 @@ int sys_shmdt(const void *shmaddr)
     if(shmKey->shm_nattch>0)
     {
         shmKey->shm_nattch --;
-        shmKey->pid[current->pid/8] &= (~((unsigned char)(1<<(current->pid%8))));
+        shmKey->pid[curVaddr] = 0;
 
+        tmpshmaddr = shmKey->vaddr[curVaddr];
+        for(i=0;i<shmKey->pageNum;i++)
+        {
+            //解除虚拟地址的占用标志
+            cancelAdress(tmpshmaddr);
+            tmpshmaddr += PAGE_SIZE;
+        }
+        shmKey->vaddr[curVaddr] = 0;
 
         if(shmKey->shm_nattch==0)
         {
             shmKey->key = -1;
             for(i=0;i<shmKey->pageNum;i++)
             {
-
                 free_page(shmKey->shmaddr[i]);
             }
             shmKey->pageNum = 0;

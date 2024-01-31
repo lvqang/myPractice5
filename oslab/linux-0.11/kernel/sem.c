@@ -23,7 +23,19 @@ typedef struct
 }structSem;
 structSem semarray[SEM_NUM] ={{0,"\0",0,0,NULL},};
 
+int sys_inisem()
+{
+    int i;
 
+    for(i=0;i<SEM_NUM;i++)
+    {
+        semarray[i].name[0] = '\0';
+        semarray[i].sem = 0;
+        semarray[i].value = 0;
+        semarray[i].wait = NULL;
+    }
+    return 0;
+}
 
 /*
 oflag   
