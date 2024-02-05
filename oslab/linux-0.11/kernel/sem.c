@@ -20,6 +20,7 @@ typedef struct
     unsigned int value;
     //unsigned int curvalue;
     struct task_struct *wait;
+    unsigned int cont;//open counts  if same process also ++
 }structSem;
 structSem semarray[SEM_NUM] ={{0,"\0",0,0,NULL},};
 
@@ -33,6 +34,7 @@ int sys_inisem()
         semarray[i].sem = 0;
         semarray[i].value = 0;
         semarray[i].wait = NULL;
+        semarray[i].cont = 0;
     }
     return 0;
 }
@@ -87,6 +89,7 @@ sem_t *sys_sem_open(const char *name, int oflag, unsigned int value)
             semarray[inull].value = value;
             //semarray[inull].curvalue = 0;
             semarray[inull].wait = NULL;
+            semarray[inull].cont = 1;
             return &(semarray[inull].sem);
         }
         else
@@ -101,6 +104,7 @@ sem_t *sys_sem_open(const char *name, int oflag, unsigned int value)
     }
     else if(i<SEM_NUM)
     {
+        semarray[i].cont ++;
         return &(semarray[i].sem);
     }
     else
@@ -157,7 +161,7 @@ int sys_sem_wait(sem_t *sem)
         cli();
     #endif     
     }   
-    cursem->value++;
+    cursem->value--;
     //
 #if LAMPORT
     lamportUnlock(current->pid);
@@ -252,11 +256,16 @@ int sys_sem_unlink(const char *name)
     }
     else
     {
-        semarray[i].name[0] = '\0';
-        semarray[i].sem = 0;//从1开始
-        semarray[i].value = 0;
-        //semarray[i].curvalue = 0;
-        semarray[i].wait = NULL;
+        //printk("sem_unlink:name=%s value=%d cont=%d\n",semarray[i].name, semarray[i].value, semarray[i].cont);
+        if((--semarray[i].cont)==0)
+        {
+            semarray[i].name[0] = '\0';
+            semarray[i].sem = 0;//从1开始
+            semarray[i].value = 0;
+            //semarray[i].curvalue = 0;
+            semarray[i].wait = NULL;
+        }
+        
     }
     return 0;
 }

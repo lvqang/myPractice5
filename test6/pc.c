@@ -16,28 +16,32 @@ int main()
     sem_t * full; 
     sem_t *empty;
 
+    int result = unlink(PATH_NAME);
+    if (result == 0) 
+    {
+        printf("File 'log.txt' has been successfully deleted.\n");
+    } else 
+    {
+        printf("Error deleting file: %d\n",result);
+    }
+    sync();
+
     for(i=0; i<CONSUM_NUM; i++)
     {
         if((pid=fork())==0)
         {
-            printf("creat process=%d\n", getpid());
-            print("pc:", "creat process=%d\n", getpid());
+            /*printf("creat process=%d\n", getpid());*/
             memset(consum_name, 0, sizeof(consum_name));
             sprintf(consum_name, "./consumer_00/consumer_%02d", i);
-            execve(consum_name, NULL,NULL);
-            break;
-        }
-        else if(pid>0)
-        {
-            /*printf("creat process=%d\n", getpid());*/
+            execve(consum_name, NULL,NULL);/*because gcc less co07 so creat pc*/
+            return 0;
         }
     }
-    while (1)
-    {
-        sleep(20);
-    }
+
+    sleep(10);
     
-    printf("pc begain write\n");    
+    print("pc","(%d):begain write\n",getpid());
+    printf("pc(%d): begain write\n",getpid());
 /*sem  shm*/
     if( 0 != crearShmAndSem(&(shmadd), &mutex, &full, &empty) )
     {
@@ -61,14 +65,16 @@ int main()
     {
         i ++;
         sem_wait(empty);
+        /*print("pc", "(%d):entry\n",getpid());*/
         sem_wait(mutex);
         putQueneValue(shmadd, i);
-        printf("pc: write=%d\n", i);
-        /*print("pc:", "write=%d\n", i);*/
+        /*printf("pc: write=%d\n", i);*/
+        print("pc", "(%d):w=%d\n",getpid(), i);
         sem_post(mutex);
+        /*print("pc", "(%d):exit\n",getpid());*/
         sem_post(full);
     }
-    
+    print("pc", "(%d):pc exit\n",getpid());
     if(deleteShmAndSem(shmadd )!=0)
     {
         printf("p(%d) deleteShmAndSem fail\n", getpid());
@@ -76,7 +82,7 @@ int main()
     }
 
     sleep(20);
-    printf("p(%d) producer exit\n", getpid());
+    /*printf("p(%d) producer exit\n", getpid());*/
     closelog();
     /*print("pc:", "producer exit\n");*/
     return 0;

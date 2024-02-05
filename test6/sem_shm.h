@@ -7,9 +7,9 @@ extern "C" {
 
 #include<sys/ipc.h>
 #include<linux/kernel.h>
-#define CONSUM_NUM     (3)
-#define SHMDATA        (10)
-
+#define CONSUM_NUM     (8)
+#define SHMDATA        (300)
+#define PATH_NAME "/usr/root/test6/log"
 typedef enum
 {
     projID_0 = 10,
@@ -51,7 +51,7 @@ extern int shmdt(const void *shmaddr);
 extern int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t **full, sem_t **empty);
 extern int deleteShmAndSem(shmadrtype *shmad );
 
-
+extern int unlink(const char *name);
 
 
 int getQueneValue(shmadrtype *quene);

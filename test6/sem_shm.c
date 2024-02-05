@@ -16,7 +16,7 @@ typedef struct
     int fd;
 }logMsg;
 logMsg logi = {0,0};
-#define PATH_NAME "/usr/root/test6/log.txt"
+
 
 _syscall3(sem_t *,sem_open,const char *,name,int,oflag,unsigned int,value)
 _syscall1(int,sem_wait,sem_t *,sem)
@@ -29,7 +29,7 @@ _syscall3(int,shmget,key_t,key,size_t,size, int,shmflg)
 _syscall3(void*,shmat,int,shmid,const void *,shmaddr,int,shmflg)
 _syscall1(int,shmdt,const void *,shmaddr)
 
-
+_syscall1(int,unlink,const char *,name)
 
 
 int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t **full, sem_t **empty)
@@ -82,7 +82,7 @@ int crearShmAndSem(shmadrtype **shmad, sem_t **mutex, sem_t **full, sem_t **empt
     }
     *full = semtmp;
 
-    semtmp = sem_open(_Empty, O_CREAT, CONSUM_NUM+1);
+    semtmp = sem_open(_Empty, O_CREAT, CONSUM_NUM);
     if(semtmp==SEM_FAILED)
     {
         printf("sem_open _Empty err\n");
@@ -161,7 +161,7 @@ int getQueneValue(shmadrtype *quene)
 
     if(isQueneEmpty(quene) || quene==NULL)
     {
-        printf("getQueneValue Empty\n");
+        print("\n","(%d):getQueneValue Empty\n", getpid());
         return -1;
     }
     else
@@ -177,7 +177,7 @@ void putQueneValue(shmadrtype *quene, int value)
 {
     if(isQueneFull(quene) || quene==NULL)
     {
-        printf("putQueneValue Full\n");
+        print("\n","(%d):putQueneValue Full\n", getpid());
         return;
     }
     else
@@ -207,6 +207,10 @@ void print(const char *name, const char *buff, ...)
             printf("open fail\n");
             return;
         }
+        else
+        {
+            printf("(%d)open log success\n", getpid());
+        }
     }
     /*if(stat(PATH_NAME, &sb)!=0)*/
     /*{*/
@@ -218,15 +222,17 @@ void print(const char *name, const char *buff, ...)
         printf("write name fail\n");
         return;
     }
-printf("write name\n");
+
     va_start(args, buff);
     vsprintf((char*)logibuf, buff, args);
     va_end(args);
-    if(write(logi.fd, logibuf, strlen(buff))<1)
+    if(write(logi.fd, logibuf, 1+strlen(buff))<1)/*\0 he \n*/
     {
         printf("write buff fail\n");
         return;
     }
+    
+    sync();
 }
 void closelog()
 {

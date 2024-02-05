@@ -1,3 +1,7 @@
+gcc pc.c sem_shm.c -o pc -I sem_shm.h
+cd test6
+gcc ../sem_shm.c consumer_0x.c -o consumer_0x -I ../sem_shm.h
+
 TARGET    := pc
 LDTAEGET  := libsem_shm_api.so
 OBJDIR := ./obj
