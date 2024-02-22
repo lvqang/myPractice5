@@ -60,7 +60,7 @@ int copy_mem(int nr,struct task_struct * p)
 	}
 	return 0;
 }
-
+extern void first_return_from_kernel();
 /*
  *  Ok, this is the main fork-routine. It copies the system process
  * information (task[nr]) and sets up the necessary registers. It
@@ -74,6 +74,7 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	struct task_struct *p;
 	int i;
 	struct file *f;
+	long *krnstack = NULL;
 
 	p = (struct task_struct *) get_free_page();
 	if (!p)
@@ -90,27 +91,47 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->utime = p->stime = 0;
 	p->cutime = p->cstime = 0;
 	p->start_time = jiffies;
-	p->tss.back_link = 0;
-	p->tss.esp0 = PAGE_SIZE + (long) p;
-	p->tss.ss0 = 0x10;
-	p->tss.eip = eip;
-	p->tss.eflags = eflags;
-	p->tss.eax = 0;
-	p->tss.ecx = ecx;
-	p->tss.edx = edx;
-	p->tss.ebx = ebx;
-	p->tss.esp = esp;
-	p->tss.ebp = ebp;
-	p->tss.esi = esi;
-	p->tss.edi = edi;
-	p->tss.es = es & 0xffff;
-	p->tss.cs = cs & 0xffff;
-	p->tss.ss = ss & 0xffff;
-	p->tss.ds = ds & 0xffff;
-	p->tss.fs = fs & 0xffff;
-	p->tss.gs = gs & 0xffff;
-	p->tss.ldt = _LDT(nr);
-	p->tss.trace_bitmap = 0x80000000;
+	//p->tss.back_link = 0;
+	//p->tss.esp0 = PAGE_SIZE + (long) p;
+	//p->tss.ss0 = 0x10;
+	//p->tss.eip = eip;
+	//p->tss.eflags = eflags;
+	//p->tss.eax = 0;
+	//p->tss.ecx = ecx;
+	//p->tss.edx = edx;
+	//p->tss.ebx = ebx;
+	//p->tss.esp = esp;
+	//p->tss.ebp = ebp;
+	//p->tss.esi = esi;
+	//p->tss.edi = edi;
+	//p->tss.es = es & 0xffff;
+	//p->tss.cs = cs & 0xffff;
+	//p->tss.ss = ss & 0xffff;
+	//p->tss.ds = ds & 0xffff;
+	//p->tss.fs = fs & 0xffff;
+	//p->tss.gs = gs & 0xffff;
+	//p->tss.ldt = _LDT(nr);
+	//p->tss.trace_bitmap = 0x80000000;
+	krnstack = (long *) (PAGE_SIZE + (long)p);
+	*(--krnstack) = ss & 0xffff;
+	*(--krnstack) = esp;
+	*(--krnstack) = eflags;
+	*(--krnstack) = cs & 0xffff;
+	*(--krnstack) = eip;
+	*(--krnstack) = ds & 0xffff;
+	*(--krnstack) = es & 0xffff;
+	*(--krnstack) = fs & 0xffff;
+	*(--krnstack) = gs & 0xffff;
+	*(--krnstack) = esi;
+	*(--krnstack) = edi;
+	*(--krnstack) = edx;
+	*(--krnstack) = (long) first_return_from_kernel; 
+	*(--krnstack) = ebp;
+	*(--krnstack) = ecx;
+	*(--krnstack) = ebx;
+	*(--krnstack) = 0;      //eax
+	p->kernelstack = (long)krnstack;
+
 	if (last_task_used_math == current)
 		__asm__("clts ; fnsave %0"::"m" (p->tss.i387));
 	if (copy_mem(nr,p)) {

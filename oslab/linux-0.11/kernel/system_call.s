@@ -44,13 +44,15 @@ CS		= 0x20
 EFLAGS		= 0x24
 OLDESP		= 0x28
 OLDSS		= 0x2C
+kernelstack = 16
+ESP0        = 4
 
 state	= 0		# these are offsets into the task-struct.
 counter	= 4
 priority = 8
 signal	= 12
-sigaction = 16		# MUST be 16 (=len of sigaction)
-blocked = (33*16)
+sigaction = 20		# MUST be 16 (=len of sigaction)
+blocked = (33*16+4)
 
 # offsets within sigaction
 sa_handler = 0
@@ -63,6 +65,7 @@ sa_restorer = 12
 nr_system_calls:
 	.long 0
 
+.globl switch_too, first_return_from_kernel
 /*
  * Ok, I get parallel printer interrupts while using the floppy for some
  * strange reason. Urgel. Now I just ignore them.
@@ -285,4 +288,60 @@ parallel_interrupt:
 	movb $0x20,%al
 	outb %al,$0x20
 	popl %eax
+	iret
+
+.align 2
+switch_too:
+	#stack frame
+	pushl %ebp
+	movl %esp, %ebp
+	pushl %ecx
+	pushl %ebx
+	pushl %eax
+	movl 8(%ebp), %ebx
+	cmpl %ebx, current
+	je 1f
+	cmpl $0, %ebx
+	je 1f
+
+	#exchage PCB
+	movl %ebx, %eax
+	xchgl %eax, current
+
+	#exchage stack
+	movl 8(%ebp), %ebx
+	movl %esp, kernelstack(%eax)
+	movl kernelstack(%ebx), %esp
+
+	#exchage TSS(why??----next  interrupt also ini process esp0)
+	#用户态切换到内核态时 切换内核栈需要用到这个esp0 不然下次切换的内核栈就是错的
+	movl tss, %ecx
+	addl $4096, %ebx
+	movl %ebx, ESP0(%ecx)
+
+	#exchage LDT
+	movl 12(%ebp), %ecx
+	lldt %cx
+	movl $0x17, %ecx
+	mov  %cx, %fs
+
+	cmpl %eax,last_task_used_math
+    jne 1f
+    clts
+1:
+	popl %eax
+	popl %ebx
+	popl %ecx
+	popl %ebp
+	ret
+
+.align 2	
+first_return_from_kernel:
+	popl %edx
+	popl %edi
+	popl %esi
+	pop %gs
+	pop %fs
+	pop %es
+	pop %ds
 	iret
