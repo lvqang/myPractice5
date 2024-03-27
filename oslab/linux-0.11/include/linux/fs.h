@@ -94,14 +94,14 @@ struct m_inode {
 	unsigned short i_mode;
 	unsigned short i_uid;
 	unsigned long i_size;
-	unsigned long i_mtime;
+	unsigned long i_mtime;//change time?
 	unsigned char i_gid;
 	unsigned char i_nlinks;
 	unsigned short i_zone[9];
 /* these are in memory also */
 	struct task_struct * i_wait;
-	unsigned long i_atime;
-	unsigned long i_ctime;
+	unsigned long i_atime;//exe time?
+	unsigned long i_ctime;//creat time?
 	unsigned short i_dev;
 	unsigned short i_num;
 	unsigned short i_count;

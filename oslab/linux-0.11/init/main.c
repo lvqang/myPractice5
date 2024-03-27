@@ -25,6 +25,11 @@ static inline _syscall0(int,pause)
 static inline _syscall1(int,setup,void *,BIOS)
 static inline _syscall0(int,sync)
 
+static inline _syscall2(int,access,const char *, filename,mode_t, mode)
+static inline _syscall2(int,mkdir,const char *, _path, mode_t, mode)
+static inline _syscall3(int,mknod,const char *, filename, mode_t, mode, dev_t, dev)
+static inline _syscall1(int,unlink,const char *, name)
+
 #include <linux/tty.h>
 #include <linux/sched.h>
 #include <linux/head.h>
@@ -180,6 +185,69 @@ void init(void)
 	printf("%d buffers = %d bytes buffer space\n\r",NR_BUFFERS,
 		NR_BUFFERS*BLOCK_SIZE);
 	printf("Free mem: %d bytes\n\r",memory_end-main_memory_start);
+//test 9
+	extern procfs nodeproc[];
+	extern unsigned int procLen;
+#define CREAT_NODE 0
+	int loop;
+	if(0!=access("/proc",F_OK))
+	{
+		if(0==mkdir("/proc", S_IRUSR|S_IRGRP|S_IROTH))
+		{
+			for(loop=0; loop<procLen; loop++)
+			{
+				if(nodeproc[loop].creat)
+				{
+					if(0==mknod(nodeproc[loop].path, nodeproc[loop].mode, nodeproc[loop].dev))
+					{
+						printf("mknode %s OK mode=%06o\n\r",nodeproc[loop].path,nodeproc[loop].mode );
+					}
+					else
+					{
+						printf("mknode %s fail\n\r",nodeproc[loop].path);
+					}
+				}
+				else
+				{
+					unlink(nodeproc[loop].path);
+				}
+			}
+		}
+		else
+		{
+			printf("mkdir /proc fail\n\r");
+		}
+	}
+	else
+	{
+#if CREAT_NODE
+		for(loop=0; loop<procLen; loop++)
+		{
+			if(0==access(nodeproc[loop].path,F_OK))
+			{
+				(void)unlink(nodeproc[loop].path);
+			}
+			if (nodeproc[loop].creat)
+			{
+				if (0 == mknod(nodeproc[loop].path, nodeproc[loop].mode, nodeproc[loop].dev))
+				{
+					printf("mknode %s OK mode=%06o\n\r", nodeproc[loop].path, nodeproc[loop].mode);
+				}
+				else
+				{
+					printf("mknode %s fail\n\r", nodeproc[loop].path);
+				}
+			}
+			else
+			{
+				//unlink(nodeproc[loop].path);
+			}
+		}
+	
+#endif
+	}
+#undef CREAT_NODE	
+//end
 	if (!(pid=fork())) {
 		close(0);
 		if (open("/etc/rc",O_RDONLY,0))
